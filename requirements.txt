@@ -1,0 +1,17 @@
+numpy
+pandas
+scipy
+matplotlib
+xarray
+dask
+pyproj
+shapely>=2.0
+geopandas
+rasterio
+pystac-client
+planetary-computer
+odc-stac>=0.3.9
+odc-geo
+torch
+segmentation-models-pytorch
+pytest
