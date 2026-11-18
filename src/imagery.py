@@ -97,7 +97,8 @@ def composite(items, gbox, chunks=None):
         refl = refl.chunk({"time": -1})
     med = refl.median("time", skipna=True)
     count = refl.isel(band=0).notnull().sum("time")
-    med, count = xr.compute(med, count)
+    # .compute() works for both numpy- and dask-backed arrays and on every xarray version
+    med, count = med.compute(), count.compute()
     return med.values.astype("float32"), count.values.astype("int16")
 
 
