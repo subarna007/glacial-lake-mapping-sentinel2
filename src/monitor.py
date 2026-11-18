@@ -52,6 +52,10 @@ def annual(predict, threshold, gbox, out, catalog):
             print(f"{year}: no scenes")
             continue
         image, clear = imagery.composite(items, gbox, chunks=CHUNKS)
+        if imagery.looks_broken(image):
+            print(f"{year}: composite failed the band check {imagery.band_medians(image)}; skipped")
+            plt.imsave(out / f"rgb_{year}_rejected.png", rgb(image[:, ::4, ::4]))
+            continue
         mask, valid = water_mask(predict, image, threshold)
         masks[year] = mask
         coverage[year] = float(valid.mean())

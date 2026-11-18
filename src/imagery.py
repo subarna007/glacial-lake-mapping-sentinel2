@@ -84,7 +84,25 @@ def reflectance(ds):
     offset = xr.where(ds.time >= np.datetime64(config.OFFSET_DATE), 1000.0, 0.0).astype("float32")
     refl = ((refl - offset) / 10000.0).clip(min=0)
     valid = (~ds.SCL.isin(config.SCL_MASK)) & (ds[config.BANDS[0]] > 0)
+    # surface reflectance above 1.5 is physically impossible; such values come from
+    # broken reads and would otherwise pass straight into the median
+    valid = valid & (refl < 1.5).all("band")
     return refl.where(valid)
+
+
+def band_medians(image):
+    """Median reflectance of each band over the observed pixels (a quick quality check)."""
+    return {b: float(np.nanmedian(image[i])) for i, b in enumerate(config.BANDS)}
+
+
+def looks_broken(image, reference=None, factor=3.0):
+    """True if any band median is more than `factor` times off the reference medians
+    (or, without a reference, if the visible bands are not of similar size)."""
+    med = band_medians(image)
+    if reference:
+        return any(not (reference[b] / factor <= med[b] <= reference[b] * factor) for b in med)
+    vis = [med["B02"], med["B03"], med["B04"]]
+    return max(vis) > factor * max(min(vis), 1e-4)
 
 
 def composite(items, gbox, chunks=None):
@@ -110,9 +128,10 @@ def scenes(items, gbox, min_clear=0.7, chunks=None):
     ds = load(items, gbox, chunks=chunks)
     refl = reflectance(ds)
     for t in range(refl.sizes["time"]):
-        scl = ds.SCL.isel(time=t).values
-        clear = float((~np.isin(scl, config.SCL_MASK)).mean())
+        arr = refl.isel(time=t).values.astype("float32")
+        # share of the area with a usable observation; this also catches scenes that only
+        # cover part of the area (the edge of the satellite's swath)
+        clear = float(np.isfinite(arr[0]).mean())
         if clear < min_clear:
             continue
-        arr = refl.isel(time=t).values.astype("float32")
         yield str(refl.time.values[t])[:10], arr, clear

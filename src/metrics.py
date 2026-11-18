@@ -34,9 +34,19 @@ def bootstrap(tile_counts, n=1000, seed=0):
     return {"iou_ci": tuple(np.percentile(ious, [2.5, 97.5])), "f1_ci": tuple(np.percentile(f1s, [2.5, 97.5]))}
 
 
-def lake_detection(pred, label, min_px=0, covered=0.5):
+def lake_detection(pred, label, min_px=0, covered=0.5, valid=None):
     """One row per labelled lake: its size in pixels and whether the prediction covers
-    at least `covered` of it."""
+    at least `covered` of it.
+
+    With `valid`, predictions in pixels without data are ignored and lakes that are less
+    than half observed are skipped, so no method gets credit for guessing inside gaps."""
+    if valid is not None:
+        pred = pred & valid
+        obs = ndimage.label(label.astype(bool))
+        seen = ndimage.mean(valid, obs[0], index=np.arange(1, obs[1] + 1)) if obs[1] else []
+        keep = np.zeros(obs[1] + 1, bool)
+        keep[1:] = np.asarray(seen) >= 0.5
+        label = keep[obs[0]]
     lab, n = ndimage.label(label.astype(bool))
     rows = []
     if n == 0:
@@ -49,8 +59,10 @@ def lake_detection(pred, label, min_px=0, covered=0.5):
     return rows
 
 
-def false_lakes(pred, label, min_px=0):
+def false_lakes(pred, label, min_px=0, valid=None):
     """Predicted water bodies (at least `min_px`) that touch no labelled lake at all."""
+    if valid is not None:
+        pred = pred & valid
     lab, n = ndimage.label(pred.astype(bool))
     if n == 0:
         return 0

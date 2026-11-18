@@ -7,6 +7,8 @@ assessments point to an ice avalanche that dammed the Lende near the border and 
 Both times people downstream had almost no warning, and both floods started in high, remote
 headwaters that are rarely watched.
 
+**Paper:** [Mapping glacial lakes in the central Himalaya with Sentinel-2 (PDF)](paper/Dahal_2026_glacial_lake_mapping.pdf), also on [my website](https://subarna007.github.io/personalwebsite/#glacial).
+
 Sentinel-2 photographs every part of the Himalaya every five days for free. This project asks two questions:
 
 1. **How well can a segmentation model find glacial lakes in Sentinel-2 images, compared with the
@@ -66,9 +68,64 @@ disappear around the two floods.
 
 ## Results
 
-The full run has not finished yet; the tables and figures will be added here from `results/`.
+### Held-out test strips
 
-## Limitations I expect
+160 test tiles (1,049 km²) with 170 Hi-MAG lakes, in two longitude strips the model never saw.
+
+| Method | Threshold | IoU (95% CI) | F1 | Precision | Recall | Lakes found | False lakes per 100 km² |
+|---|---|---|---|---|---|---|---|
+| NDWI | 0.30 | 0.490 (0.414-0.570) | 0.658 | 0.819 | 0.550 | 45.9% | 0.3 |
+| MNDWI | 0.70 | 0.039 (0.015-0.075) | 0.076 | 0.045 | 0.244 | 8.2% | 38.7 |
+| **U-Net (ResNet-34)** | 0.65 | **0.669 (0.582-0.737)** | **0.802** | **0.861** | **0.750** | **70.6%** | 11.5 |
+
+| Lake size | Lakes | NDWI | MNDWI | U-Net |
+|---|---|---|---|---|
+| 0.0081-0.02 km² | 64 | 39.1% | 3.1% | 51.6% |
+| 0.02-0.1 km² | 77 | 50.6% | 6.5% | 80.5% |
+| ≥ 0.1 km² | 29 | 48.3% | 24.1% | 86.2% |
+
+- The U-Net beats NDWI on every pixel score and finds about 1.5 times as many lakes. The gain is biggest
+  for medium lakes (0.02-0.1 km²), which NDWI misses when they are dark, shadowed or partly frozen.
+- MNDWI fails here: snow and ice look like water to it, and its best threshold sat at the top of the
+  search grid.
+- The U-Net makes more false detections (11.5 vs 0.3 per 100 km²). Part of this comes from gaps where
+  every scene was masked as cloud shadow: often these gaps *are* dark lakes, and the network fills them
+  in. Pixel scores ignore gaps; in this first run the lake-level scores did not. The evaluation code now
+  ignores predictions in gaps, so the lake-level numbers above will change slightly on a re-run.
+
+![Lakes found by size](results/fig_recall_by_size.png)
+
+![Example test tiles](results/fig_examples.png)
+
+### Lende and upper Bhotekoshi, 2017-2024
+
+![Lende monitoring](results/monitor/fig_lende.png)
+
+- 72-91 lakes per autumn, 18.5-21.0 km² in total (mean 19.7, SD 0.9). No steady trend.
+- Four of the five largest lakes changed by less than 2% between 2017 and 2024, so the model gives
+  consistent outlines for the same lake from different years' images.
+- **Lake A (28.483 N, 85.735 E) grew every year, from 0.43 to 0.73 km² (+69%).** Lake B (28.642 N,
+  85.490 E) roughly doubled (0.40 to 0.83 km²). Lake C dropped to almost nothing in 2022 and came back,
+  which is almost certainly ice or snow in that composite, not a real change.
+- The **2025** autumn composite came out with impossible band values (almost no red or green, very
+  high blue) and was excluded. The code now rejects such composites automatically.
+
+### Around the floods
+
+- **2026:** the last clear scene before the flood was on 12 August and the next on 1 October. For seven
+  weeks, including the day of the flood, there was no clear optical image of the valley. The three
+  full-coverage scenes after the flood (1, 21 and 26 October) give 20.3-20.8 km² of lakes, inside the
+  2017-2024 range: no sign that a large lake drained.
+- **2025:** the pre-flood scenes only covered part of the box (the edge of the satellite's swath runs
+  through it) and many lakes were still frozen in May and June, so they cannot show whether the source
+  lake was visible beforehand.
+
+**Main lesson:** the U-Net is clearly better than an index threshold, but the real limit for warnings in
+this valley is monsoon cloud. Radar (Sentinel-1) is the obvious next step.
+
+All numbers: `results/metrics.json`, `results/monitor/*.csv`.
+
+## Limitations
 
 - **Labels are 30 m, images are 10 m.** Hi-MAG outlines come from Landsat, so lake edges in the
   labels are blocky. This limits the best IoU any model can reach against them.
@@ -79,6 +136,14 @@ The full run has not finished yet; the tables and figures will be added here fro
   formed and drained within weeks in early summer. A once-a-year autumn map would not show it; that is
   why the single-scene check around each flood is part of the project.
 - **Frozen lakes, shadow and turbid water** are the expected hard cases for every method.
+
+## What could be explored next
+
+- Train on Sentinel-1 radar, alone or with Sentinel-2, to see through monsoon cloud.
+- Find the 2025 source lake on the Purepu glacier and follow it scene by scene through June and July 2025.
+- Add elevation and slope from a DEM to separate lakes from shadow and rivers.
+- Use a stack of scenes instead of one median: shadows move, lakes do not.
+- Train on newer, 10 m inventories; test on other basins and with more seeds.
 
 ## Repository
 
@@ -97,6 +162,8 @@ src/
   metrics.py     IoU, F1, lake-level recall, bootstrap
 tests/           checks for the parts that do not need imagery
 notebooks/       the whole pipeline in one notebook
+results/         metrics, tables, figures and the Lende time series
+paper/           the write-up (LaTeX source and PDF)
 ```
 
 ## Running it

@@ -4,3 +4,9 @@ __pycache__/
 .ipynb_checkpoints/
 .pytest_cache/
 results/unet/model.pt
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.fls
+paper/*.fdb_latexmk
+paper/paper.pdf

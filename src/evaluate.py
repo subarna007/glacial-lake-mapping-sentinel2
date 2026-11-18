@@ -50,10 +50,10 @@ def evaluate(preds, labels, valids, n_boot=1000):
     res = metrics.scores(np.sum(tile_counts, 0))
     res.update(metrics.bootstrap(tile_counts, n=n_boot, seed=config.SEED))
     rows, false = [], 0
-    for p, l in zip(preds, labels):
-        p = remove_small(p, config.MIN_LAKE_PX)
-        rows += metrics.lake_detection(p, l, min_px=config.MIN_LAKE_PX)
-        false += metrics.false_lakes(p, l, min_px=config.MIN_LAKE_PX)
+    for p, l, v in zip(preds, labels, valids):
+        p = remove_small(p & v, config.MIN_LAKE_PX)
+        rows += metrics.lake_detection(p, l, min_px=config.MIN_LAKE_PX, valid=v)
+        false += metrics.false_lakes(p, l, min_px=config.MIN_LAKE_PX, valid=v)
     area_km2 = len(preds) * (config.TILE ** 2) * PX_KM2
     res["lake_recall"] = float(np.mean([r[1] for r in rows])) if rows else float("nan")
     res["lakes"] = len(rows)

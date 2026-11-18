@@ -120,3 +120,17 @@ def test_split_strips_and_buffer():
     assert assign_split(84.49) is None      # just outside a test strip
     assert assign_split(86.01) is None      # just inside the validation strip
     assert in_bbox(85.4, 28.4, config.MONITOR_BBOX)
+
+
+def test_lake_detection_ignores_gaps():
+    label = np.zeros((40, 40), bool)
+    label[5:15, 5:15] = True          # observed lake
+    label[25:35, 25:35] = True        # lake inside a gap
+    valid = np.ones_like(label)
+    valid[22:38, 22:38] = False
+    pred = label.copy()               # "finds" both, including the hidden one
+    rows = metrics.lake_detection(pred, label, min_px=10, valid=valid)
+    assert rows == [(100, True)]      # the hidden lake is not scored
+    stray = np.zeros_like(label)
+    stray[30:34, 0:4] = True
+    assert metrics.false_lakes(stray, label, valid=np.zeros_like(label)) == 0
